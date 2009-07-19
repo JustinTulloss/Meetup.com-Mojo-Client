@@ -1,0 +1,14 @@
+[
+    {
+        "source": "app/assistants/stage-assistant.js"
+    }, 
+    {
+        "source": "javascripts/cobra.js"
+    },
+    {
+        "source": "javascripts/meetup-api.js"
+    },
+    {
+        "source": "app/assistants/sync-assistant.js"
+    },
+]
