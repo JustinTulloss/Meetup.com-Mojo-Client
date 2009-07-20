@@ -6,6 +6,7 @@ SDK to sync meetups from Meetup.com to your Palm webOS device.
 
 To Install
 ----------
+
 ::
     palm-emulator
     palm-package .
