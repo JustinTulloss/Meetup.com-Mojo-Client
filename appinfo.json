@@ -2,6 +2,7 @@
 	"id": "com.example.meetup",
 	"version": "1.0.0",
 	"type": "web",
+    "vendor": "Justin",
 	"main": "index.html",
 	"title": "Meetup.com",
 	"icon": "icon.png"

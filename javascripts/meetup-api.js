@@ -26,10 +26,11 @@ CITIES_PREFIX = 'cities/'
 
 /* Client constructor must be initialized with a valid API key as an argument */
 var MeetupApiClient = function(key){ this.init(key) }
-MeetupApiClient.prototype.init = function(key){   this.key = key  }                 			 
+MeetupApiClient.prototype.init = function(key){   this.key = key  }
 
 MeetupApiClient.prototype.callrpc = function callRpc(call_type, params, callback){
-    var url = '?callback=meetupCallbackFunction&'                                    
+    var url = '?callback=meetupCallbackFunction&'
+
     params.key = this.key
     params.format = 'json'
     /* required for demo applications */
@@ -47,7 +48,7 @@ MeetupApiClient.prototype.callrpc = function callRpc(call_type, params, callback
     var query = $H(params).toQueryString();
     url = urlprefix + call_type + url + query;
     Mojo.loadScriptWithCallback(url, Mojo.doNothing);
-}              
+}
 
 MeetupApiClient.prototype.nextPage = function(callback) {
     var my = this;
@@ -61,10 +62,29 @@ MeetupApiClient.prototype.nextPage = function(callback) {
 
 /* These methods will make a request using the provided parameters, and execute the specified callback function
  * when the result is returned */
-MeetupApiClient.prototype.get_groups =  function(params, callback){ this.callrpc(GROUPS_PREFIX, params, callback) }
-MeetupApiClient.prototype.get_events =  function(params,callback){ this.callrpc(EVENTS_PREFIX, params, callback) }
-MeetupApiClient.prototype.get_members =  function(params,callback){ this.callrpc(MEMBERS_PREFIX, params, callback) }
-MeetupApiClient.prototype.get_rsvps =  function(params,callback){ this.callrpc(RSVPS_PREFIX, params, callback) }
-MeetupApiClient.prototype.get_topics =  function(params,callback){ this.callrpc(TOPICS_PREFIX, params, callback) }
-MeetupApiClient.prototype.get_photos =  function(params,callback){ this.callrpc(PHOTOS_PREFIX, params, callback) }
-MeetupApiClient.prototype.get_cities =  function(params,callback){ this.callrpc(CITIES_PREFIX, params, callback) }			 
+MeetupApiClient.prototype.get_groups =  function(params, callback){
+    this.callrpc(GROUPS_PREFIX, params, callback)
+}
+
+MeetupApiClient.prototype.get_events =  function(params,callback){
+    this.callrpc(EVENTS_PREFIX, params, callback)
+}
+
+MeetupApiClient.prototype.get_members =  function(params,callback){
+    this.callrpc(MEMBERS_PREFIX, params, callback)
+}
+MeetupApiClient.prototype.get_rsvps =  function(params,callback){
+    this.callrpc(RSVPS_PREFIX, params, callback)
+}
+
+MeetupApiClient.prototype.get_topics =  function(params,callback){
+    this.callrpc(TOPICS_PREFIX, params, callback)
+}
+
+MeetupApiClient.prototype.get_photos =  function(params,callback){
+    this.callrpc(PHOTOS_PREFIX, params, callback)
+}
+
+MeetupApiClient.prototype.get_cities =  function(params,callback){
+    this.callrpc(CITIES_PREFIX, params, callback)
+}

@@ -1,6 +1,24 @@
+/*
+ * Copyright (C) 2009 Justin Tulloss
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+ */
+
 var SyncAssistant = new Cobra.Class({
     __init__: function(self) {
-        self.client = new MeetupApiClient('5d94f505664713d6b7d677773702163');
+        self.client = new MeetupApiClient(Meet.Auth.apiKey);
         self.calendarServiceId = "palm://com.palm.calendar/crud/";
         self.accountServiceId = "palm://com.palm.accounts/crud/";
         self._syncStats = [];
@@ -13,15 +31,17 @@ var SyncAssistant = new Cobra.Class({
             disabled: true
         };
 
-        self.controller.setupWidget('sync-button', {}, self.buttonModel);
+        self.controller.setupWidget('sync-button', {
+            type: Mojo.Widget.activityButton
+        }, self.buttonModel);
 
         Mojo.Event.listen($('sync-button'), Mojo.Event.tap, function() {
             self.buttonModel.disabled = true;
             self.controller.modelChanged(self.buttonModel)
+            self.controller.get("sync-button").mojo.activate();
             self.syncCalendar();
         });
 
-        // A little continuation passing style ;)
         self.setupAccount(function() {
             self.setupCalendar(function() {
                 self.buttonModel.disabled = false;
@@ -61,9 +81,11 @@ var SyncAssistant = new Cobra.Class({
                     });
                 }
             },
+            onFailure: function() {
+                Mojo.Controller.errorDialog("Failed to create account");
+            },
             onError: function(error) {
-                Mojo.Log.error("Fetching accounts failed: %j", error);
-                window.close();
+                Mojo.Controller.errorDialog("Error creating account");
             }
         })
     },
@@ -76,6 +98,7 @@ var SyncAssistant = new Cobra.Class({
                 accountId: self.account.accountId
             },
             onSuccess: function(calList) {
+                Mojo.Log.info("Got calendar list");
                 if (calList.calendars.length > 0) {
                     self.calendar = calList.calendars[0];
                     k();
@@ -94,58 +117,85 @@ var SyncAssistant = new Cobra.Class({
                             self.calendar.calendarId = response.calendarId
                             k();
                         },
+                        onFailure: function(error) {
+                            Mojo.Log.error("Creating calendar failed: %j", error);
+                            Mojo.Controller.errorDialog("Failed to create calendar");
+                        },
                         onError: function(error) {
                             Mojo.Log.error("Creating calendar failed: %j", error);
-                            window.close();
+                            Mojo.Controller.errorDialog("Error creating calendar");
                         }
                     });
                 }
             },
+            onFailure: function() {
+                Mojo.Controller.errorDialog("Failed to create calendar");
+            },
             onError: function(error) {
-                Mojo.Log.error("Fetching calendars failed: %j", error);
-                window.close();
+                Mojo.Controller.errorDialog("Error creating calendar");
             }
         });
     },
 
-    /* Syncs every upcoming meetup within 100 miles of San Francico */
     syncCalendar: function(self) {
+        // Gets my member id
+        Mojo.Log.info("Syncing calendar");
+        self.client.get_members({
+            relation: "self"
+        }, self._getGroups);
+    },
+
+    _getGroups: function(self, members) {
+        Mojo.Log.info("Got members");
+        var memberId = members.results[0].id;
+        self.client.get_groups({
+            member_id: memberId
+        }, self._getEvents);
+    },
+
+    _getEvents: function(self, groups) {
+        Mojo.Log.info("Got events");
+        groups = groups.results;
+        var groupString = groups[0].id;
+        var today = new Date();
+        for (var i = 1; i < groups.length; i++) {
+            groupString += "," + groups[i].id;
+        }
         self.client.get_events({
-            zip: 94107,
-            radius: 100,
-            after: "02042009"
+            group_id: groupString,
+            after: today.getMonth() + today.getDay() + today.getFullYear()
         }, self._saveEvents);
     },
 
     _saveEvents: function(self, events) {
-        self._syncStatus = {
-            events: events,
-            numReturned: 0,
-            started: new Date().getTime(),
-            failures: 0
-        };
+        Mojo.Log.info("Saving events");
+
+        self.numEventsProcessed = 0;
+        self.events = events;
 
         events.results.each(function(meetupEvent) {
             var time = new Date(meetupEvent.time).getTime();
-            self.controller.serviceRequest(self.calendarServiceId, {
-                method: 'createEvent',
-                parameters: {
-                    calendarId: self.calendar.calendarId,
-                    event: {
-                        eventId: meetupEvent.id,
-                        subject: meetupEvent.name,
-                        startTimestamp: time,
-                        endTimestamp: time + 3600000, //1 hour in ms
-                        allDay: false,
-                        note: self._formatNote(meetupEvent),
-                        location: meetupEvent.lat + ", " + meetupEvent.lon,
-                        alarm: 'none',
-                    }
-                },
-                onSuccess: self._createdEvent,
-                onError: self._errorCreatingEvent,
-                onFailure: self._failureCreatingEvent
-            });
+            if (meetupEvent.myrsvp != "no") {
+                self.controller.serviceRequest(self.calendarServiceId, {
+                    method: 'createEvent',
+                    parameters: {
+                        calendarId: self.calendar.calendarId,
+                        event: {
+                            eventId: meetupEvent.id,
+                            subject: meetupEvent.name,
+                            startTimestamp: time,
+                            endTimestamp: time + 3600000, // 1 hour in ms
+                            allDay: false,
+                            note: self._formatNote(meetupEvent),
+                            location: meetupEvent.lat + ", " + meetupEvent.lon,
+                            alarm: 'none',
+                        }
+                    },
+                    onSuccess: self._createdEvent,
+                    onError: self._errorCreatingEvent,
+                    onFailure: self._failureCreatingEvent
+                });
+            }
         });
     },
 
@@ -155,53 +205,27 @@ var SyncAssistant = new Cobra.Class({
 
     _errorCreatingEvent: function(self, response) {
         Mojo.Log.error("Could not create event: %j", response);
-        self._syncStatus.failures++;
         self._checkIfSyncFinished();
     },
 
     _failureCreatingEvent: function(self, response) {
         Mojo.Log.error("Failed to create event: %d, %j", self._eventsReturned, response);
-        self._syncStatus.failures++;
         self._checkIfSyncFinished();
     },
 
     _checkIfSyncFinished: function(self) {
-        with (self._syncStatus) {
-            numReturned++;
-            if (numReturned == events.meta.count) {
-                var now = new Date().getTime();
-                var records = events.meta.count - failures;
-                var seconds = (now - started)/1000;
+        self.numEventsProcessed++;
+        if (self.numEventsProcessed == self.events.meta.count) {
 
-                self._syncStats.push({
-                    records: records,
-                    seconds: seconds
-                });
-
-                var logString = ["Created", records, "records in ", seconds, 
-                    "seconds (", records/seconds, "records/second)"].join(' ');
-                Mojo.Log.info(logString);
-                $('output').appendChild(new Element('div', {'class': 'log'}).update(logString));
-
-                if (events.meta.next) {
-                    Mojo.Log.info("Fetching the next page of results...");
-                    self.client.nextPage(self._saveEvents);
-                }
-                else {
-                    Mojo.Log.info("Fetched all the results, accumulating final stats...");
-                    var finalStats = self._syncStats.inject(
-                        {records:0, seconds:0},
-                        function(acc, n) {
-                            acc.records += n.records;
-                            acc.seconds += n.seconds;
-                            return acc;
-                        }
-                    );
-                    var logString = ["Total Created:", finalStats.records , "records in ", finalStats.seconds, 
-                        "seconds (Averaged", finalStats.records/finalStats.seconds, "records/second)"].join(' ');
-                    Mojo.Log.info(logString);
-                    $('output').appendChild(new Element('div', {'class': 'log'}).update(logString));
-                }
+            if (self.events.meta.next) {
+                Mojo.Log.info("Fetching the next page of results...");
+                self.client.nextPage(self._saveEvents);
+            }
+            else {
+                Mojo.Log.info("Fetched all the events");
+                self.buttonModel.disabled = false;
+                self.controller.modelChanged(self.buttonModel);
+                self.controller.get("sync-button").mojo.deactivate();
             }
         }
     },
